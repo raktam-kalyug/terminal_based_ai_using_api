@@ -136,7 +136,11 @@ echo %PY_CMD% "%TARGET_DIR%\\fox.py" %%*
 ) > "%TARGET_DIR%\\fox.cmd"
 
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$p = [Environment]::GetEnvironmentVariable('Path', 'User'); if ($p -notlike '*%TARGET_DIR%*') { [Environment]::SetEnvironmentVariable('Path', $p + ';%TARGET_DIR%', 'User') }" >nul 2>&1
-set "PATH=%TARGET_DIR%;%PATH%"
+
+:: Place a launcher in user profile directory so it works in the current session immediately
+copy /y "%TARGET_DIR%\\fox.cmd" "%USERPROFILE%\\fox.cmd" >nul 2>&1
+
+endlocal & set "PATH=%USERPROFILE%\\.fox;%PATH%"
 
 echo.
 echo ======================================================
