@@ -1,0 +1,13 @@
+node_modules/
+.env
+.env.local
+.DS_Store
+__pycache__/
+*.pyc
+*.log
+.fox_config.json
+.fox_history
+.lan_gemini_config.json
+.lan_gemini_history
+output.md
+gemini_chat.md

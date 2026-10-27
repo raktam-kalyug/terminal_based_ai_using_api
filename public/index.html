@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f4f0">
+  <title>Fox LAN Chat — Private Local AI Hub</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="Fox LAN Chat home"><span class="spark">🦊</span><span>Fox <small>LAN CHAT</small></span></a>
+      <button id="settingsButton" class="icon-button" aria-label="Open settings" title="Settings">⚙</button>
+    </header>
+    <section class="conversation" id="conversation" aria-live="polite">
+      <div class="welcome" id="welcome">
+        <div class="orb">🦊</div>
+        <p class="eyebrow">YOUR PRIVATE LOCAL NETWORK AI</p>
+        <h1>What’s on your mind?</h1>
+        <p class="intro">Ask anything. Messages travel safely through your host computer, and the API key never leaves the server.</p>
+        <div class="suggestions">
+          <button>Explain a tricky idea simply</button>
+          <button>Help me plan a weekend project</button>
+          <button>Give me a fresh perspective</button>
+        </div>
+      </div>
+      <div id="messages" class="messages"></div>
+    </section>
+    <form id="composer" class="composer">
+      <textarea id="prompt" rows="1" maxlength="12000" placeholder="Message Gemini…" aria-label="Message Gemini"></textarea>
+      <div class="composer-bottom"><span>Gemini can make mistakes. Check important information.</span><button id="send" type="submit" aria-label="Send message">↑</button></div>
+    </form>
+    <div id="status" class="status" role="status"></div>
+  </main>
+  <dialog id="settings">
+    <form method="dialog" class="settings-card">
+      <button class="close" aria-label="Close">×</button>
+      <p class="eyebrow">THIS DEVICE</p><h2>Chat settings</h2>
+      <label for="appPassword">Shared app password <span>(optional)</span></label>
+      <input id="appPassword" type="password" autocomplete="current-password" placeholder="Only if configured on the server">
+      <p class="hint">If the server owner set APP_PASSWORD, enter it here. It is stored only in this browser.</p>
+      <button id="saveSettings" class="save" value="default">Save</button>
+    </form>
+  </dialog>
+  <script src="/app.js" type="module"></script>
+</body>
+</html>

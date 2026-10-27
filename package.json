@@ -1,0 +1,31 @@
+{
+  "name": "fox-lan-chat",
+  "version": "2.1.0",
+  "description": "Share Gemini across your local Wi-Fi with web UI & stealth terminal client (Fox)",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "setup": "node setup.js",
+    "dev": "node --watch server.js"
+  },
+  "keywords": [
+    "gemini",
+    "ai",
+    "cli",
+    "lan",
+    "local-network",
+    "chat",
+    "stealth-terminal",
+    "fox"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@google/genai": "^1.0.0",
+    "dotenv": "^16.4.7",
+    "express": "^5.1.0"
+  }
+}
