@@ -35,12 +35,18 @@ This starter is intended for a trusted home/lab network. Optional `APP_PASSWORD`
 
 3. **Access**:
    - **On the host computer**: `http://localhost:3000`
-   - **On other devices on your Wi-Fi**: `http://<HOST_IP>:3000`
+   - **Persistent mDNS URL (No IP needed)**: `http://<MacName>.local:3000` (stays the same even if DHCP changes your IP)
+   - **By local IP**: `http://<HOST_IP>:3000`
    - **On any terminal on your network**:
      ```sh
      curl -sSL http://<HOST_IP>:3000/install | bash
      ```
      Then simply run `fox` in your terminal!
+
+> [!TIP]
+> **What if the host Mac's IP address changes?**
+> - **Web browsers**: Use the persistent Bonjour name `http://<MacName>.local:3000` which never breaks when the Mac's IP changes.
+> - **Terminal (`fox`)**: If your host Mac gets assigned a new IP address, `fox` automatically broadcasts on the LAN via UDP beacon and scans the local subnet to re-discover the new IP and updates itself seamlessly. You can also run `fox --scan` anytime.
 
 ## Mac Internet Sharing / hotspot
 

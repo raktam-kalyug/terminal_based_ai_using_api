@@ -16,9 +16,12 @@ from pathlib import Path
 import platform
 import re
 import shutil
+import socket
 import subprocess
 import sys
+import time
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 # Default server URL: dynamically substituted when downloaded via http://<host>/fox
@@ -161,6 +164,116 @@ def copy_to_clipboard(text: str) -> bool:
     return False
 
 
+def discover_server_udp(timeout: float = 1.0) -> str | None:
+    """Send UDP broadcast to discover LAN Fox Chat server on local network."""
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+    sock.settimeout(timeout)
+
+    targets = ["127.0.0.1", "255.255.255.255"]
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        my_ip = s.getsockname()[0]
+        s.close()
+        octets = my_ip.split(".")
+        if len(octets) == 4:
+            targets.append(f"{octets[0]}.{octets[1]}.{octets[2]}.255")
+    except Exception:
+        pass
+
+    try:
+        for tgt in targets:
+            try:
+                sock.sendto(b"FOX_DISCOVER", (tgt, 35353))
+            except Exception:
+                continue
+
+        start_t = time.time()
+        while time.time() - start_t < timeout:
+            try:
+                data, addr = sock.recvfrom(1024)
+                info = json.loads(data.decode("utf-8"))
+                if info.get("app") == "fox-lan-chat":
+                    port = info.get("port", 3000)
+                    resp_ip = addr[0] if addr[0] != "127.0.0.1" else "localhost"
+                    return f"http://{resp_ip}:{port}"
+            except (socket.timeout, json.JSONDecodeError):
+                break
+            except Exception:
+                continue
+    except Exception:
+        pass
+    finally:
+        sock.close()
+    return None
+
+
+def scan_local_subnet(port: int = 3000, timeout: float = 0.25) -> str | None:
+    """Check common IPs on the client's local subnet in case UDP broadcast is blocked."""
+    import concurrent.futures
+
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        my_ip = s.getsockname()[0]
+        s.close()
+    except Exception:
+        return None
+
+    octets = my_ip.split(".")
+    if len(octets) != 4:
+        return None
+    subnet = ".".join(octets[:3])
+    my_last = int(octets[3])
+
+    def check_candidate(host_id: int) -> str | None:
+        target_ip = f"{subnet}.{host_id}"
+        try:
+            req = Request(f"http://{target_ip}:{port}/api/health", headers={"Accept": "application/json"})
+            with urlopen(req, timeout=timeout) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                if data.get("running"):
+                    return f"http://{target_ip}:{port}"
+        except Exception:
+            pass
+        return None
+
+    # Priority order: gateway (.1, .2), neighboring hosts, then rest
+    priority = [1, 2] + list(range(max(1, my_last - 25), min(255, my_last + 25)))
+    seen = set()
+    targets = [x for x in priority if not (x in seen or seen.add(x))]
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=25) as executor:
+        futures = {executor.submit(check_candidate, h): h for h in targets}
+        for future in concurrent.futures.as_completed(futures):
+            res = future.result()
+            if res:
+                return res
+    return None
+
+
+def auto_find_server(last_known_url: str = "") -> str | None:
+    """Finds the LAN Fox server when the host Mac's IP address changes."""
+    # 1. Try UDP broadcast discovery (fastest ~20ms)
+    discovered = discover_server_udp(timeout=1.0)
+    if discovered:
+        return discovered
+
+    # 2. Extract port from last known URL or default 3000
+    target_port = 3000
+    if last_known_url:
+        try:
+            p = urlparse(last_known_url)
+            if p.port:
+                target_port = p.port
+        except Exception:
+            pass
+
+    # 3. Subnet scan fallback
+    return scan_local_subnet(port=target_port, timeout=0.25)
+
+
 def request_json(url: str, method: str = "GET", payload: dict | None = None, password: str = "") -> dict:
     data = json.dumps(payload).encode("utf-8") if payload is not None else None
     headers = {"Accept": "application/json"}
@@ -287,6 +400,7 @@ def print_stealth_help(style: Style):
     print(f"\n{style.bold('Commands:')}")
     print(f"  {style.yellow('clear')}            Clear terminal screen")
     print(f"  {style.yellow('reset')}            Reset conversation context")
+    print(f"  {style.yellow('scan')}             Rescan network if server IP changed")
     print(f"  {style.yellow('panic')}            Disguise screen as ordinary shell")
     print(f"  {style.yellow('!<cmd>')}           Execute a local shell command (e.g., !ls -la)")
     print(f"  {style.yellow('copy')}             Copy last response to clipboard")
@@ -352,6 +466,11 @@ def main() -> int:
         help="Disable ANSI styling",
     )
     parser.add_argument(
+        "--scan",
+        action="store_true",
+        help="Scan local network to find and save Fox server IP",
+    )
+    parser.add_argument(
         "--version",
         "-v",
         action="version",
@@ -377,12 +496,36 @@ def main() -> int:
     use_color = not args.raw and sys.stdout.isatty() and "NO_COLOR" not in os.environ
     style = Style(enabled=use_color)
 
-    # Check connection silently
+    if args.scan:
+        print(style.dim("Searching local network for Fox server..."))
+        found = auto_find_server(server)
+        if found:
+            save_config(found, password)
+            print(f"{style.green('✓ Found and saved:')} {found}")
+            return 0
+        else:
+            print(style.red("No Fox servers discovered on this network."))
+            return 1
+
+    # Check connection silently; auto-discover if host IP changed
     try:
         health = request_json(f"{server}/api/health")
     except RuntimeError as err:
-        print(f"Error: {err}", file=sys.stderr)
-        return 1
+        sys.stderr.write(f"{style.dim('Host at ' + server + ' unreachable. Searching LAN for IP change...')}\n")
+        new_server = auto_find_server(server)
+        if new_server:
+            server = new_server
+            save_config(server, password)
+            sys.stderr.write(f"{style.green('✓ Reconnected to ' + server)}\n")
+            try:
+                health = request_json(f"{server}/api/health")
+            except RuntimeError as err2:
+                print(f"Error: {err2}", file=sys.stderr)
+                return 1
+        else:
+            print(f"Error: {err}", file=sys.stderr)
+            print("Tip: If host Mac IP changed, ensure server is running or run: fox --scan", file=sys.stderr)
+            return 1
 
     # Check for piped input from STDIN (e.g. cat file | fox "review")
     piped_input = ""
@@ -518,6 +661,17 @@ def main() -> int:
         if cmd in ("reset", "/reset"):
             history.clear()
             last_response = ""
+            continue
+
+        if cmd in ("scan", "/scan"):
+            print(style.dim("Scanning local network for Fox server..."))
+            found = auto_find_server(server)
+            if found:
+                server = found
+                save_config(server, password)
+                print(style.green(f"✓ Reconnected to {server}"))
+            else:
+                print(style.red("No Fox servers discovered on this network."))
             continue
 
         if cmd in ("help", "/help", "?"):

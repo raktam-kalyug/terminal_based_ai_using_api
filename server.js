@@ -5,6 +5,7 @@ import { GoogleGenAI } from '@google/genai';
 import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
+import dgram from 'node:dgram';
 
 let apiKey = process.env.GEMINI_API_KEY;
 
@@ -245,18 +246,43 @@ const getLocalIpAddresses = () => {
   return addresses;
 };
 
+// UDP discovery beacon: allows terminal clients to auto-discover server when host IP changes
+const startDiscoveryBeacon = (httpPort) => {
+  try {
+    const udpServer = dgram.createSocket({ type: 'udp4', reuseAddr: true });
+    udpServer.on('error', () => {
+      try { udpServer.close(); } catch {}
+    });
+    udpServer.on('message', (msg, rinfo) => {
+      if (msg.toString().trim() === 'FOX_DISCOVER') {
+        const payload = JSON.stringify({
+          app: 'fox-lan-chat',
+          port: httpPort,
+          hostname: os.hostname(),
+        });
+        udpServer.send(payload, rinfo.port, rinfo.address, () => {});
+      }
+    });
+    udpServer.bind(35353, '0.0.0.0');
+  } catch {}
+};
+
 app.listen(port, '0.0.0.0', () => {
+  startDiscoveryBeacon(port);
   const ips = getLocalIpAddresses();
   const primaryIp = ips[0] || 'YOUR_MAC_IP';
+  const mdnsHost = os.hostname().endsWith('.local') ? os.hostname() : `${os.hostname()}.local`;
 
   console.log(`\n======================================================`);
-  console.log(`  LAN Fox Server running on port ${port}`);
-  console.log(`  Local:   http://localhost:${port}`);
+  console.log(`  🦊 LAN Fox Server running on port ${port}`);
+  console.log(`  Local:     http://localhost:${port}`);
+  console.log(`  mDNS/LAN:  http://${mdnsHost}:${port} (persistent name)`);
   for (const ip of ips) {
-    console.log(`  Network: http://${ip}:${port}`);
+    console.log(`  Network:   http://${ip}:${port}`);
   }
   console.log(`------------------------------------------------------`);
   console.log(`  To install stealth CLI 'fox' on any network terminal:`);
   console.log(`  curl -sSL http://${primaryIp}:${port}/install | bash`);
+  console.log(`  (Clients auto-discover if this Mac's IP changes)`);
   console.log(`======================================================\n`);
 });
