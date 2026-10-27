@@ -20,8 +20,8 @@ if ((!apiKey || apiKey === 'replace_with_your_key') && process.stdin.isTTY && !p
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
-const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
-const fallbackModel = process.env.GEMINI_FALLBACK_MODEL || 'gemini-2.0-flash';
+const model = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
+const fallbackModel = process.env.GEMINI_FALLBACK_MODEL || 'gemini-3.6-flash';
 const password = process.env.APP_PASSWORD || '';
 
 const ai = apiKey && apiKey !== 'replace_with_your_key' ? new GoogleGenAI({ apiKey }) : null;

@@ -159,13 +159,13 @@ export async function runSetup({ autoStartServer = false } = {}) {
   // 4. Model selection
   console.log(bold('4. Model Selection:'));
   const selectedModel = await io.ask(
-    `   Primary Gemini model [${cyan('gemini-2.5-flash')}]: `,
-    'gemini-2.5-flash'
+    `   Primary Gemini model [${cyan('gemini-3.5-flash-lite')}]: `,
+    'gemini-3.5-flash-lite'
   );
 
   const selectedFallback = await io.ask(
-    `   Fallback model [${cyan('gemini-2.0-flash')}]: `,
-    'gemini-2.0-flash'
+    `   Fallback model [${cyan('gemini-3.6-flash')}]: `,
+    'gemini-3.6-flash'
   );
   console.log(`   ${green('✓')} Models configured.\n`);
 
