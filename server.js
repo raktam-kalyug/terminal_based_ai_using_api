@@ -1,17 +1,20 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
+dotenv.config();
 import express from 'express';
 import { GoogleGenAI } from '@google/genai';
 import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
 
-const apiKey = process.env.GEMINI_API_KEY;
+let apiKey = process.env.GEMINI_API_KEY;
 
 // Auto-run interactive setup if key is missing and run in an interactive terminal
 if ((!apiKey || apiKey === 'replace_with_your_key') && process.stdin.isTTY && !process.env.CI) {
   console.log('\n🦊 GEMINI_API_KEY not configured. Launching interactive setup...\n');
-  await import('./setup.js');
-  process.exit(0);
+  const { runSetup } = await import('./setup.js');
+  await runSetup({ autoStartServer: false });
+  dotenv.config({ override: true });
+  apiKey = process.env.GEMINI_API_KEY;
 }
 
 const app = express();
@@ -20,7 +23,7 @@ const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 const fallbackModel = process.env.GEMINI_FALLBACK_MODEL || 'gemini-2.0-flash';
 const password = process.env.APP_PASSWORD || '';
 
-const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
+const ai = apiKey && apiKey !== 'replace_with_your_key' ? new GoogleGenAI({ apiKey }) : null;
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 app.disable('x-powered-by');

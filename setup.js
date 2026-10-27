@@ -10,22 +10,8 @@ import os from 'node:os';
 import net from 'node:net';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { execSync, spawn } from 'node:child_process';
-
-let lines = [];
-let lineIndex = 0;
-let rl;
-
-if (!input.isTTY) {
-  try {
-    const content = fs.readFileSync(0, 'utf-8');
-    lines = content.split(/\r?\n/);
-  } catch {
-    lines = [];
-  }
-} else {
-  rl = readline.createInterface({ input, output });
-}
 
 // ANSI styling
 const bold = (s) => `\x1b[1m${s}\x1b[0m`;
@@ -33,21 +19,6 @@ const green = (s) => `\x1b[32m${s}\x1b[0m`;
 const cyan = (s) => `\x1b[36m${s}\x1b[0m`;
 const yellow = (s) => `\x1b[33m${s}\x1b[0m`;
 const dim = (s) => `\x1b[2m${s}\x1b[0m`;
-
-async function askQuestion(query, defaultValue = '') {
-  if (!input.isTTY) {
-    if (lineIndex < lines.length) {
-      const val = lines[lineIndex++].trim();
-      process.stdout.write(query + val + '\n');
-      return val || defaultValue;
-    }
-    process.stdout.write(query + defaultValue + '\n');
-    return defaultValue;
-  }
-  const answer = await rl.question(query);
-  const trimmed = answer.trim();
-  return trimmed || defaultValue;
-}
 
 function isPortAvailable(port) {
   return new Promise((resolve) => {
@@ -82,8 +53,46 @@ function getNetworkIps() {
   return results;
 }
 
+function createInputHandler() {
+  if (!input.isTTY) {
+    let lines = [];
+    let lineIndex = 0;
+    try {
+      const content = fs.readFileSync(0, 'utf-8');
+      lines = content.split(/\r?\n/);
+    } catch {
+      lines = [];
+    }
+    return {
+      async ask(query, defaultValue = '') {
+        if (lineIndex < lines.length) {
+          const val = lines[lineIndex++].trim();
+          process.stdout.write(query + val + '\n');
+          return val || defaultValue;
+        }
+        process.stdout.write(query + defaultValue + '\n');
+        return defaultValue;
+      },
+      close() {},
+    };
+  }
 
-async function main() {
+  const rl = readline.createInterface({ input, output });
+  return {
+    async ask(query, defaultValue = '') {
+      const answer = await rl.question(query);
+      const trimmed = answer.trim();
+      return trimmed || defaultValue;
+    },
+    close() {
+      rl.close();
+    },
+  };
+}
+
+export async function runSetup({ autoStartServer = false } = {}) {
+  const io = createInputHandler();
+
   console.log(`\n${bold(cyan('======================================================'))}`);
   console.log(`  ${bold('🦊 LAN Fox Chat — Interactive Setup Wizard')}`);
   console.log(`${bold(cyan('======================================================'))}\n`);
@@ -110,7 +119,7 @@ async function main() {
     console.log(`   ${yellow('!')} Port ${defaultPort} is currently in use.`);
   }
 
-  const portAnswer = await askQuestion(
+  const portAnswer = await io.ask(
     `   Enter port to run on [${cyan(recommendedPort)}]: `,
     String(recommendedPort)
   );
@@ -122,7 +131,6 @@ async function main() {
   console.log(dim('   Get a free API key at: https://aistudio.google.com/apikey'));
   
   let apiKey = '';
-  // Check if existing .env has a key
   if (fs.existsSync('.env')) {
     const existing = fs.readFileSync('.env', 'utf-8');
     const match = existing.match(/^GEMINI_API_KEY=(.+)$/m);
@@ -133,7 +141,7 @@ async function main() {
   }
 
   while (!apiKey) {
-    const keyAnswer = await askQuestion(`   Paste your GEMINI_API_KEY: `);
+    const keyAnswer = await io.ask(`   Paste your GEMINI_API_KEY: `);
     const trimmed = keyAnswer.trim();
     if (trimmed && trimmed !== 'replace_with_your_key') {
       apiKey = trimmed;
@@ -150,12 +158,12 @@ async function main() {
 
   // 4. Model selection
   console.log(bold('4. Model Selection:'));
-  const selectedModel = await askQuestion(
+  const selectedModel = await io.ask(
     `   Primary Gemini model [${cyan('gemini-2.5-flash')}]: `,
     'gemini-2.5-flash'
   );
 
-  const selectedFallback = await askQuestion(
+  const selectedFallback = await io.ask(
     `   Fallback model [${cyan('gemini-2.0-flash')}]: `,
     'gemini-2.0-flash'
   );
@@ -163,7 +171,7 @@ async function main() {
 
   // 5. Shared Password (optional)
   console.log(bold('5. Access Security (Optional):'));
-  const selectedPassword = await askQuestion(
+  const selectedPassword = await io.ask(
     `   Optional shared password for LAN clients [${dim('Press Enter for none')}]: `,
     ''
   );
@@ -221,24 +229,36 @@ APP_PASSWORD=${selectedPassword}
   console.log(`  ${yellow(`curl -sSL http://${primaryIp}:${selectedPort}/install | bash`)}`);
   console.log(bold(green('======================================================\n')));
 
-  const startAnswer = await askQuestion(
-    `Would you like to start the server now? [${cyan('Y/n')}]: `,
-    'n'
-  );
-  if (rl) rl.close();
+  if (autoStartServer) {
+    const startAnswer = await io.ask(
+      `Would you like to start the server now? [${cyan('Y/n')}]: `,
+      'y'
+    );
+    io.close();
 
-  if (startAnswer.trim().toLowerCase() !== 'n') {
-    console.log(`\nStarting server...\n`);
-    const serverProcess = spawn('node', ['server.js'], { stdio: 'inherit' });
-    serverProcess.on('exit', (code) => {
-      process.exit(code ?? 0);
-    });
+    if (startAnswer.trim().toLowerCase() !== 'n') {
+      console.log(`\nStarting server...\n`);
+      const serverProcess = spawn('node', ['server.js'], { stdio: 'inherit' });
+      serverProcess.on('exit', (code) => {
+        process.exit(code ?? 0);
+      });
+    } else {
+      console.log(`\nYou can start the server anytime by running:\n  ${cyan('npm start')}\n`);
+    }
   } else {
-    console.log(`\nYou can start the server anytime by running:\n  ${cyan('npm start')}\n`);
+    io.close();
+    console.log(`Starting server now...\n`);
   }
+
+  return { port: selectedPort, apiKey, model: selectedModel, fallbackModel: selectedFallback, password: selectedPassword };
 }
 
-main().catch((err) => {
-  console.error('\nSetup error:', err.message);
-  process.exit(1);
-});
+// Direct execution from CLI
+const thisFile = fileURLToPath(import.meta.url);
+const invokedFile = process.argv[1] ? fs.realpathSync(process.argv[1]) : '';
+if (invokedFile === thisFile) {
+  runSetup({ autoStartServer: true }).catch((err) => {
+    console.error('\nSetup error:', err.message);
+    process.exit(1);
+  });
+}
