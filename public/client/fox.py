@@ -527,6 +527,29 @@ def main() -> int:
             print("Tip: If host Mac IP changed, ensure server is running or run: fox --scan", file=sys.stderr)
             return 1
 
+    # Discreet password verification if needed
+    if not password and not config.get("password"):
+        try:
+            request_json(
+                f"{server}/api/chat",
+                method="POST",
+                payload={"messages": [{"role": "user", "text": "ping"}]},
+                password="",
+            )
+        except RuntimeError as err:
+            if "password" in str(err).lower():
+                if sys.stdin.isatty():
+                    try:
+                        password = getpass.getpass("Password: ").strip()
+                        if password:
+                            save_config(server, password)
+                    except (EOFError, KeyboardInterrupt):
+                        print()
+                        return 0
+                else:
+                    print("Error: Server requires an app password. Pass -p <password> or run 'fox' to save it.", file=sys.stderr)
+                    return 1
+
     # Check for piped input from STDIN (e.g. cat file | fox "review")
     piped_input = ""
     if not sys.stdin.isatty():
@@ -567,22 +590,6 @@ def main() -> int:
     # Clean startup: clear the screen completely after establishing connection
     if not args.no_clear:
         clear_screen()
-
-    # Discreet password prompt if needed
-    if not password and not config.get("password"):
-        try:
-            request_json(
-                f"{server}/api/chat",
-                method="POST",
-                payload={"messages": [{"role": "user", "text": "ping"}]},
-                password="",
-            )
-        except RuntimeError as err:
-            if "password" in str(err).lower():
-                password = getpass.getpass("Password: ").strip()
-                if password:
-                    save_config(server, password)
-                    clear_screen()
 
     history: list[dict[str, str]] = []
     system_instruction = args.system or DEFAULT_SYSTEM_PROMPT

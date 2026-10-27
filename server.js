@@ -58,7 +58,7 @@ const serveCliScript = (req, res) => {
 
 app.get(['/fox', '/cli', '/client/fox.py', '/client/gemini.py'], serveCliScript);
 
-// One-line bash installer for any terminal client on the network
+// One-line bash installer for Mac & Linux
 app.get(['/install', '/install.sh'], (req, res) => {
   const serverUrl = getServerUrl(req);
   const installScript = `#!/usr/bin/env bash
@@ -97,6 +97,102 @@ echo "  cat file.txt | fox        # Pipe input directly"
 `;
   res.setHeader('Content-Type', 'text/x-shellscript; charset=utf-8');
   res.send(installScript);
+});
+
+// Windows CMD installer
+app.get(['/install.bat', '/install.cmd'], (req, res) => {
+  const serverUrl = getServerUrl(req);
+  const batScript = `@echo off
+setlocal enabledelayedexpansion
+
+echo [Fox] Installing Fox LAN Client from ${serverUrl}...
+
+where python >nul 2>&1
+if %ERRORLEVEL% neq 0 (
+  where py >nul 2>&1
+  if %ERRORLEVEL% neq 0 (
+    echo [Error] Python 3 was not found in your PATH.
+    echo Please install Python from https://python.org or Microsoft Store and try again.
+    exit /b 1
+  )
+  set "PY_CMD=py"
+) else (
+  set "PY_CMD=python"
+)
+
+set "TARGET_DIR=%USERPROFILE%\\.fox"
+if not exist "%TARGET_DIR%" mkdir "%TARGET_DIR%"
+
+echo [Fox] Downloading fox.py...
+curl -sSL "${serverUrl}/fox" -o "%TARGET_DIR%\\fox.py"
+if %ERRORLEVEL% neq 0 (
+  echo [Error] Failed to download fox.py from ${serverUrl}
+  exit /b 1
+)
+
+(
+echo @echo off
+echo %PY_CMD% "%TARGET_DIR%\\fox.py" %%*
+) > "%TARGET_DIR%\\fox.cmd"
+
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$p = [Environment]::GetEnvironmentVariable('Path', 'User'); if ($p -notlike '*%TARGET_DIR%*') { [Environment]::SetEnvironmentVariable('Path', $p + ';%TARGET_DIR%', 'User') }" >nul 2>&1
+set "PATH=%TARGET_DIR%;%PATH%"
+
+echo.
+echo ======================================================
+echo   [OK] Fox installed successfully!
+echo ======================================================
+echo.
+echo You can now run:
+echo   fox                         (Start interactive chat)
+echo   fox "What is a laptop?"     (Quick question)
+echo   type file.txt ^| fox         (Pipe input on Windows)
+echo.
+`;
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  res.send(batScript);
+});
+
+// Windows PowerShell installer
+app.get('/install.ps1', (req, res) => {
+  const serverUrl = getServerUrl(req);
+  const psScript = `# Fox Windows PowerShell Installer
+$serverUrl = "${serverUrl}"
+Write-Host "[Fox] Installing from $serverUrl..." -ForegroundColor Cyan
+
+$python = (Get-Command python, py -ErrorAction SilentlyContinue | Select-Object -First 1)
+if (-not $python) {
+    Write-Host "[Error] Python 3 was not found. Please install Python from https://python.org" -ForegroundColor Red
+    return
+}
+
+$targetDir = "$env:USERPROFILE\\.fox"
+if (!(Test-Path $targetDir)) { New-Item -ItemType Directory -Path $targetDir -Force | Out-Null }
+
+Write-Host "[Fox] Downloading fox.py..." -ForegroundColor Cyan
+Invoke-WebRequest -Uri "$serverUrl/fox" -OutFile "$targetDir\\fox.py"
+
+"@echo off\`r\`n$($python.Name) \`"$targetDir\\fox.py\`" %*" | Out-File -Encoding ascii "$targetDir\\fox.cmd"
+
+$userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+if ($userPath -notlike "*$targetDir*") {
+    [Environment]::SetEnvironmentVariable("Path", "$userPath;$targetDir", "User")
+}
+$env:Path = "$targetDir;$env:Path"
+
+Write-Host ""
+Write-Host "======================================================" -ForegroundColor Green
+Write-Host "  [OK] Fox installed successfully!" -ForegroundColor Green
+Write-Host "======================================================" -ForegroundColor Green
+Write-Host ""
+Write-Host "Run:"
+Write-Host "  fox                         (Interactive chat)"
+Write-Host "  fox 'your prompt'           (Quick question)"
+Write-Host "  Get-Content file.txt | fox  (Pipe file in PowerShell)"
+Write-Host ""
+`;
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  res.send(psScript);
 });
 
 app.use(express.static('public'));
@@ -281,8 +377,13 @@ app.listen(port, '0.0.0.0', () => {
     console.log(`  Network:   http://${ip}:${port}`);
   }
   console.log(`------------------------------------------------------`);
-  console.log(`  To install stealth CLI 'fox' on any network terminal:`);
+  console.log(`  To install on Mac / Linux terminal:`);
   console.log(`  curl -sSL http://${primaryIp}:${port}/install | bash`);
-  console.log(`  (Clients auto-discover if this Mac's IP changes)`);
+  console.log(``);
+  console.log(`  To install on Windows (Command Prompt):`);
+  console.log(`  curl -sSL http://${primaryIp}:${port}/install.bat -o install.bat && install.bat`);
+  console.log(``);
+  console.log(`  Or run directly without installing (any PC with Python):`);
+  console.log(`  curl -sSL http://${primaryIp}:${port}/fox -o fox.py && python fox.py`);
   console.log(`======================================================\n`);
 });

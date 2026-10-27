@@ -38,9 +38,22 @@ This starter is intended for a trusted home/lab network. Optional `APP_PASSWORD`
    - **Persistent mDNS URL (No IP needed)**: `http://<MacName>.local:3000` (stays the same even if DHCP changes your IP)
    - **By local IP**: `http://<HOST_IP>:3000`
    - **On any terminal on your network**:
-     ```sh
-     curl -sSL http://<HOST_IP>:3000/install | bash
-     ```
+     - **Mac / Linux**:
+       ```sh
+       curl -sSL http://<HOST_IP>:3000/install | bash
+       ```
+     - **Windows (Command Prompt)**:
+       ```cmd
+       curl -sSL http://<HOST_IP>:3000/install.bat -o install.bat && install.bat
+       ```
+     - **Windows (PowerShell)**:
+       ```powershell
+       irm http://<HOST_IP>:3000/install.ps1 | iex
+       ```
+     - **Or directly without installing**:
+       ```sh
+       curl -sSL http://<HOST_IP>:3000/fox -o fox.py && python fox.py
+       ```
      Then simply run `fox` in your terminal!
 
 > [!TIP]
@@ -70,20 +83,26 @@ Quick troubleshooting:
 
 The server provides a stealth terminal client named **`fox`** for any device on your local network. It requires only standard Python 3.8+ (zero pip packages required), keeps the Gemini API key safe on your host Mac, and is designed to look and feel like an ordinary terminal subshell.
 
-### 1. One-Line Install (Recommended)
+### 1. Installation
 
-On any machine connected to your local network, run:
-
+**On Mac / Linux**:
 ```sh
 curl -sSL http://<MAC_IP>:3000/install | bash
 ```
 
-This installs `fox` directly into `~/.local/bin/fox` (along with a `gemini` symlink) and automatically pre-configures it to connect to your Mac's IP.
+**On Windows (Command Prompt)**:
+```cmd
+curl -sSL http://<MAC_IP>:3000/install.bat -o install.bat && install.bat
+```
 
-*(Alternatively, download it manually without installing:)*
+**On Windows (PowerShell)**:
+```powershell
+irm http://<MAC_IP>:3000/install.ps1 | iex
+```
+
+*(Alternatively, run directly without installing on any machine with Python:)*
 ```sh
-curl -sSL http://<MAC_IP>:3000/fox -o fox && chmod +x fox
-./fox
+curl -sSL http://<MAC_IP>:3000/fox -o fox.py && python fox.py
 ```
 
 ### 2. Stealth Features

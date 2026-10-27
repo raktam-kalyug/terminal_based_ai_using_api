@@ -225,8 +225,12 @@ APP_PASSWORD=${selectedPassword}
     console.log(`  • Network Web:      ${cyan(`http://${ip.address}:${selectedPort}`)}`);
   }
   console.log(`\n  ${bold('Terminal CLI Installation:')}`);
-  console.log(`  Run this command on any computer on your Wi-Fi to install 'fox':`);
-  console.log(`  ${yellow(`curl -sSL http://${primaryIp}:${selectedPort}/install | bash`)}`);
+  console.log(`  • On Mac / Linux:`);
+  console.log(`    ${yellow(`curl -sSL http://${primaryIp}:${selectedPort}/install | bash`)}`);
+  console.log(`  • On Windows (Command Prompt):`);
+  console.log(`    ${yellow(`curl -sSL http://${primaryIp}:${selectedPort}/install.bat -o install.bat && install.bat`)}`);
+  console.log(`  • Or run directly without installing (any PC with Python):`);
+  console.log(`    ${yellow(`curl -sSL http://${primaryIp}:${selectedPort}/fox -o fox.py && python fox.py`)}`);
   console.log(bold(green('======================================================\n')));
 
   if (autoStartServer) {
