@@ -16,7 +16,7 @@ This starter is intended for a trusted home/lab network. Optional `APP_PASSWORD`
 
 1. **Clone the repository**:
    ```sh
-   git clone <REPO_URL>
+   git clone https://github.com/raktam-kalyug/terminal_based_ai_using_api.git
    cd fox-lan-chat
    ```
 
